@@ -14,7 +14,7 @@ jobs:
           java-version: '21'
       - run: |
           npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
           npx cap init "Farmi Blast" com.farmi.blast --web-dir www
           npx cap add android
           npx cap sync
