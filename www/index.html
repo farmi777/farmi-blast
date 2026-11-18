@@ -1,0 +1,2207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Farmi Blast</title>
+<style>
+  :root{
+    --text:#eef1f6;
+    --text-dim:#99a2b2;
+    --gold:#d9b26a;
+    --gold-soft:#f0d9a8;
+    --panel:rgba(18,21,28,.94);
+    --boardAlpha:1;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0d0f13}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    color:var(--text);
+    -webkit-user-select:none;user-select:none;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  /* ================= BACKGROUND ================= */
+  #bgLayer{position:fixed;inset:0;z-index:0;overflow:hidden;background:#0d0f13}
+  #bgMedia{position:absolute;inset:0;overflow:hidden}
+  #bgMedia .media{
+    position:absolute;top:50%;left:50%;
+    width:100%;height:100%;
+    transform:translate(-50%,-50%);
+    transform-origin:center center;
+    will-change:transform,filter;
+    pointer-events:none;
+  }
+  #bgTint{position:absolute;inset:0;background:#000;opacity:.2;transition:opacity .3s ease;pointer-events:none}
+
+  /* ================= WEATHER ================= */
+  #weather{position:fixed;inset:0;z-index:1;pointer-events:none;display:block}
+
+  /* ================= APP LAYOUT ================= */
+  #app{
+    position:fixed;inset:0;z-index:3;
+    display:flex;flex-direction:column;
+    gap:10px;
+    padding:calc(env(safe-area-inset-top,0px) + 10px) 12px calc(env(safe-area-inset-bottom,0px) + 10px);
+  }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    flex:0 0 auto;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:8px 14px;border-radius:18px;
+    background:rgba(16,18,24,.42);
+    border:1px solid rgba(255,255,255,.10);
+    -webkit-backdrop-filter:blur(20px) saturate(140%);
+    backdrop-filter:blur(20px) saturate(140%);
+    box-shadow:0 8px 30px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.07);
+  }
+  .hud-left{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .score-label{
+    font-size:9px;letter-spacing:1.6px;text-transform:uppercase;
+    color:var(--text-dim);font-weight:600;
+  }
+  .score-value{
+    font-size:26px;font-weight:700;letter-spacing:-.8px;line-height:1.05;
+    font-variant-numeric:tabular-nums;
+    transition:color .2s;
+  }
+  .score-value.bump{color:var(--gold-soft)}
+  .hud-right{display:flex;align-items:center;gap:8px}
+  .best-pill{
+    display:flex;align-items:center;gap:6px;
+    padding:6px 11px;border-radius:12px;
+    background:rgba(217,178,106,.10);
+    border:1px solid rgba(217,178,106,.28);
+    font-size:13px;font-weight:600;color:var(--gold-soft);
+    font-variant-numeric:tabular-nums;
+  }
+  .best-pill svg{display:block;flex:0 0 auto;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+  .icon-btn{
+    width:38px;height:38px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:12px;cursor:pointer;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.10);
+    color:var(--text);
+    transition:transform .16s cubic-bezier(.3,1.4,.5,1), background .2s, border-color .2s;
+    padding:0;
+    font-family:inherit;
+  }
+  .icon-btn:active{transform:scale(.9);background:rgba(255,255,255,.13)}
+  .icon-btn svg{display:block}
+
+  /* ---------- BOARD AREA ---------- */
+  #boardArea{
+    flex:1;min-height:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #boardWrap{
+    position:relative;
+    border-radius:26px;
+    touch-action:none;
+  }
+  #boardBg{
+    position:absolute;inset:0;border-radius:26px;
+    opacity:var(--boardAlpha);
+    transition:opacity .25s ease, background .35s ease, box-shadow .35s ease, border-color .35s ease;
+    pointer-events:none;
+  }
+  #board{
+    position:relative;z-index:1;
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    grid-template-rows:repeat(8,1fr);
+    width:100%;height:100%;
+    border-radius:26px;
+  }
+  .cell{
+    position:relative;border-radius:22%;
+    transition:box-shadow .18s ease;
+  }
+  .cell::before{
+    content:'';position:absolute;inset:2px;border-radius:22%;
+    background:rgba(255,255,255,.045);
+    transition:background .25s ease, box-shadow .25s ease;
+  }
+  .cell.hl::after{
+    content:'';position:absolute;inset:2px;border-radius:22%;
+    background:rgba(255,255,255,.20);
+    box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.6), 0 0 14px rgba(255,255,255,.35);
+    animation:hlPulse .9s ease-in-out infinite alternate;
+    pointer-events:none;
+  }
+  @keyframes hlPulse{from{opacity:.45}to{opacity:.95}}
+  .cell.pc{
+    box-shadow:inset 0 0 0 1.5px rgba(232,201,138,.75), 0 0 18px rgba(232,201,138,.32);
+  }
+
+  /* ---------- BOARD STYLES ---------- */
+  .board-frosted #boardBg{
+    background:rgba(255,255,255,.075);
+    border:1px solid rgba(255,255,255,.16);
+    -webkit-backdrop-filter:blur(22px) saturate(150%);
+    backdrop-filter:blur(22px) saturate(150%);
+    box-shadow:0 24px 60px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.18);
+  }
+  .board-frosted .cell::before{background:rgba(255,255,255,.05)}
+
+  .board-graphite #boardBg{
+    background:#15171c;
+    border:1px solid rgba(255,255,255,.06);
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 2px 10px rgba(0,0,0,.75);
+  }
+  .board-graphite .cell::before{
+    background:rgba(255,255,255,.035);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.6);
+  }
+
+  .board-marble #boardBg{
+    background:linear-gradient(155deg,#f4f2ed 0%,#e8e4db 55%,#dcd7cc 100%);
+    border:1px solid rgba(255,255,255,.75);
+    box-shadow:0 24px 60px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.95);
+  }
+  .board-marble .cell::before{
+    background:rgba(120,110,95,.055);
+    box-shadow:inset 0 2px 3px rgba(120,110,95,.13), inset 0 -1px 0 rgba(255,255,255,.85);
+  }
+
+  .board-outline #boardBg{
+    background:transparent;
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 0 50px rgba(255,255,255,.04), inset 0 0 40px rgba(255,255,255,.02);
+  }
+  .board-outline .cell::before{
+    background:transparent;
+    border:1px solid rgba(255,255,255,.13);
+    box-shadow:inset 0 0 8px rgba(255,255,255,.055);
+  }
+
+  /* ---------- BLOCKS ---------- */
+  .blk{
+    position:absolute;inset:3px;border-radius:22%;
+    background:linear-gradient(155deg,var(--light) 0%,var(--base) 46%,var(--dark) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.42),
+      inset 0 -3px 6px rgba(0,0,0,.20),
+      inset 0 0 0 1px rgba(0,0,0,.055),
+      0 3px 9px rgba(0,0,0,.28);
+    overflow:hidden;
+    will-change:transform;
+  }
+  .blk::after{
+    content:'';position:absolute;inset:0;border-radius:inherit;
+    background:linear-gradient(180deg,rgba(255,255,255,.22) 0%,rgba(255,255,255,0) 42%);
+    pointer-events:none;z-index:1;
+  }
+  .pat{
+    position:absolute;left:50%;top:50%;
+    width:58%;height:58%;
+    transform:translate(-50%,-50%);
+    background:rgba(0,0,0,.30);
+    opacity:.42;
+    -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+    -webkit-mask-position:center;mask-position:center;
+    -webkit-mask-size:contain;mask-size:contain;
+    pointer-events:none;z-index:2;
+  }
+
+  /* block style: glass */
+  body[data-block-style="glass"] .blk{
+    background:linear-gradient(150deg,rgba(255,255,255,.40) 0%,var(--base) 52%,var(--dark) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.68),
+      inset 0 -3px 9px rgba(0,0,0,.16),
+      inset 0 0 0 1px rgba(255,255,255,.16),
+      0 4px 12px rgba(0,0,0,.26);
+    opacity:.95;
+  }
+  body[data-block-style="glass"] .blk::after{
+    background:linear-gradient(180deg,rgba(255,255,255,.46) 0%,rgba(255,255,255,0) 55%);
+  }
+  body[data-block-style="glass"] .pat{background:rgba(255,255,255,.85);opacity:.34}
+
+  /* block style: minimal */
+  body[data-block-style="minimal"] .pat{display:none}
+
+  /* preview styles for the picker */
+  .pv-glass .blk{
+    background:linear-gradient(150deg,rgba(255,255,255,.40) 0%,var(--base) 52%,var(--dark) 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.68), inset 0 -3px 9px rgba(0,0,0,.16), 0 4px 12px rgba(0,0,0,.26);
+  }
+  .pv-glass .pat{background:rgba(255,255,255,.85);opacity:.34}
+  .pv-minimal .pat{display:none}
+
+  .blk.pop{animation:pop .34s cubic-bezier(.3,.7,.4,1) forwards}
+  @keyframes pop{
+    0%{transform:scale(1);opacity:1}
+    45%{transform:scale(1.14);opacity:1;filter:brightness(1.35)}
+    100%{transform:scale(.15);opacity:0}
+  }
+  .blk.free{inset:auto}
+
+  /* ---------- TRAY ---------- */
+  #tray{
+    flex:0 0 auto;
+    display:flex;gap:10px;justify-content:center;
+    height:92px;padding:0 2px;
+    touch-action:none;
+  }
+  .slot{
+    position:relative;flex:1 1 0;max-width:116px;
+    border-radius:18px;
+    background:rgba(255,255,255,.045);
+    border:1px solid rgba(255,255,255,.08);
+    display:flex;align-items:center;justify-content:center;
+    transition:background .2s, border-color .2s, opacity .2s;
+    touch-action:none;
+  }
+  .slot.dragging{opacity:.30}
+  .slot .piece{position:relative}
+
+  /* ---------- DRAG LAYER ---------- */
+  .drag-layer{
+    position:fixed;left:0;top:0;z-index:600;
+    pointer-events:none;will-change:transform;
+  }
+
+  /* ---------- EFFECTS ---------- */
+  .particle{position:fixed;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:800;will-change:transform,opacity}
+  .float-text{
+    position:fixed;z-index:810;pointer-events:none;
+    font-size:21px;font-weight:700;letter-spacing:.3px;white-space:nowrap;
+    text-shadow:0 3px 14px rgba(0,0,0,.55), 0 1px 2px rgba(0,0,0,.5);
+    transform:translate(-50%,-50%);
+  }
+
+  /* ---------- FPS BOX ---------- */
+  #fpsBox{
+    position:fixed;left:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);
+    z-index:900;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:10.5px;font-weight:600;letter-spacing:.2px;
+    color:rgba(230,236,245,.72);
+    background:rgba(10,12,16,.55);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:9px;padding:4px 8px;
+    pointer-events:none;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    font-variant-numeric:tabular-nums;
+  }
+  #fpsBox.hidden{display:none}
+  #fpsBox .sep{opacity:.4;margin:0 4px}
+
+  /* ---------- OVERLAYS ---------- */
+  .overlay{
+    position:fixed;inset:0;z-index:1000;
+    display:flex;align-items:flex-end;justify-content:center;
+    background:rgba(6,8,12,.55);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    transition:opacity .25s ease;
+    padding:0;
+  }
+  .overlay.hidden{opacity:0;pointer-events:none}
+  .overlay.center{align-items:center;padding:16px}
+  .panel{
+    width:100%;max-width:520px;max-height:88dvh;
+    display:flex;flex-direction:column;
+    background:var(--panel);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:24px 24px 0 0;
+    box-shadow:0 -20px 70px rgba(0,0,0,.55);
+    transform:translateY(0);
+    transition:transform .3s cubic-bezier(.2,1,.3,1);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    overflow:hidden;
+  }
+  .overlay.hidden .panel{transform:translateY(26px)}
+  .overlay.center .panel{border-radius:24px;max-width:380px;transform:scale(1)}
+  .overlay.center.hidden .panel{transform:scale(.95)}
+
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 16px 10px;flex:0 0 auto;
+  }
+  .panel-title{font-size:15px;font-weight:700;letter-spacing:.2px}
+
+  .tabs{
+    display:flex;gap:6px;padding:0 16px 10px;
+    overflow-x:auto;overflow-y:hidden;
+    flex:0 0 auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{
+    flex:0 0 auto;
+    padding:8px 14px;border-radius:11px;
+    font-size:12px;font-weight:600;font-family:inherit;
+    color:var(--text-dim);
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);
+    cursor:pointer;transition:all .18s;
+  }
+  .tab.active{
+    background:rgba(217,178,106,.16);
+    border-color:rgba(217,178,106,.5);
+    color:var(--gold-soft);
+  }
+
+  .panel-body{
+    flex:1 1 auto;min-height:0;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:0 16px 22px;
+  }
+  .pane{display:none}
+  .pane.active{display:block}
+
+  .group-title{
+    font-size:10px;letter-spacing:1.4px;text-transform:uppercase;
+    color:var(--text-dim);font-weight:700;
+    margin:16px 0 8px;
+  }
+  .group-title:first-child{margin-top:6px}
+
+  .row{
+    display:flex;align-items:center;gap:10px;
+    padding:7px 0;
+    font-size:12.5px;color:var(--text-dim);font-weight:500;
+  }
+  .row>span{flex:0 0 auto;min-width:96px}
+  .row>input[type=range]{flex:1 1 auto;min-width:0}
+  .row>b{
+    flex:0 0 44px;text-align:right;
+    font-size:11.5px;font-weight:700;color:var(--text);
+    font-variant-numeric:tabular-nums;
+  }
+
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;
+    height:4px;border-radius:4px;outline:none;
+    background:rgba(255,255,255,.14);
+    cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:18px;height:18px;border-radius:50%;
+    background:linear-gradient(160deg,#ffffff,#c9d2de);
+    border:none;
+    box-shadow:0 2px 8px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.15);
+    cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:18px;height:18px;border-radius:50%;border:none;
+    background:linear-gradient(160deg,#ffffff,#c9d2de);
+    box-shadow:0 2px 8px rgba(0,0,0,.45);
+    cursor:pointer;
+  }
+
+  .seg{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 auto}
+  .seg button{
+    flex:1 1 auto;min-width:56px;
+    padding:9px 8px;border-radius:11px;
+    font-size:11.5px;font-weight:600;font-family:inherit;
+    color:var(--text-dim);
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);
+    cursor:pointer;transition:all .18s;
+  }
+  .seg button.active{
+    background:rgba(217,178,106,.16);
+    border-color:rgba(217,178,106,.5);
+    color:var(--gold-soft);
+  }
+
+  .btn{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    width:100%;padding:12px 14px;margin-top:8px;
+    border-radius:13px;font-size:13px;font-weight:600;font-family:inherit;
+    color:var(--text);
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.11);
+    cursor:pointer;transition:transform .15s cubic-bezier(.3,1.4,.5,1), background .2s;
+    text-align:center;
+  }
+  .btn:active{transform:scale(.975);background:rgba(255,255,255,.13)}
+  .btn.primary{
+    background:linear-gradient(155deg,#e2c078,#c9a04f);
+    border-color:rgba(255,255,255,.25);
+    color:#241b0c;font-weight:700;
+    box-shadow:0 6px 20px rgba(200,160,80,.28);
+  }
+  .btn.ghost{background:rgba(255,255,255,.04)}
+
+  .grad-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:2px 0}
+  .grad{
+    aspect-ratio:1/1;border-radius:14px;cursor:pointer;
+    border:2px solid transparent;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.13), 0 4px 12px rgba(0,0,0,.25);
+    transition:border-color .2s, transform .15s, box-shadow .2s;
+    padding:0;
+  }
+  .grad:active{transform:scale(.94)}
+  .grad.active{border-color:var(--gold);box-shadow:0 0 0 3px rgba(217,178,106,.18), inset 0 0 0 1px rgba(255,255,255,.25)}
+
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .card{
+    display:flex;flex-direction:column;gap:6px;
+    padding:8px;border-radius:15px;cursor:pointer;
+    background:rgba(255,255,255,.04);
+    border:1.5px solid rgba(255,255,255,.09);
+    transition:all .2s;font-family:inherit;
+  }
+  .card:active{transform:scale(.97)}
+  .card.active{
+    border-color:rgba(217,178,106,.6);
+    background:rgba(217,178,106,.08);
+  }
+  .card .thumb{
+    height:54px;border-radius:11px;
+    display:flex;align-items:center;justify-content:center;gap:5px;
+    position:relative;overflow:hidden;
+  }
+  .card .name{
+    font-size:11px;font-weight:600;color:var(--text-dim);
+    text-align:center;line-height:1.2;
+  }
+  .card.active .name{color:var(--gold-soft)}
+
+  .thumb-frosted{
+    background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.24);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  .thumb-graphite{
+    background:#15171c;
+    border:1px solid rgba(255,255,255,.07);
+    box-shadow:inset 0 2px 8px rgba(0,0,0,.8);
+  }
+  .thumb-marble{
+    background:linear-gradient(150deg,#f4f2ed,#ded9ce);
+    border:1px solid rgba(255,255,255,.7);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
+  }
+  .thumb-outline{
+    background:transparent;
+    border:1px solid rgba(255,255,255,.22);
+    box-shadow:inset 0 0 20px rgba(255,255,255,.05);
+  }
+
+  .mini-block{
+    width:19px;height:19px;border-radius:22%;
+    position:relative;
+    background:linear-gradient(155deg,var(--light) 0%,var(--base) 46%,var(--dark) 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.42), inset 0 -2px 4px rgba(0,0,0,.2), 0 2px 6px rgba(0,0,0,.28);
+    overflow:hidden;
+  }
+  .mini-block .pat{
+    width:62%;height:62%;
+  }
+  .pv-minimal .mini-block .pat{display:none}
+  .pv-glass .mini-block{
+    background:linear-gradient(150deg,rgba(255,255,255,.4) 0%,var(--base) 52%,var(--dark) 100%);
+  }
+
+  /* game over */
+  .go-inner{padding:26px 22px 24px;text-align:center}
+  .go-title{font-size:13px;letter-spacing:1.6px;text-transform:uppercase;color:var(--text-dim);font-weight:700}
+  .go-score{
+    font-size:52px;font-weight:800;letter-spacing:-2px;line-height:1.1;
+    margin:8px 0 2px;font-variant-numeric:tabular-nums;
+    background:linear-gradient(155deg,#ffffff,#c9c2b4);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .go-sub{font-size:12.5px;color:var(--text-dim);font-weight:600;margin-bottom:14px}
+  .go-sub b{color:var(--gold-soft)}
+
+  /* scrollbar */
+  .panel-body::-webkit-scrollbar{width:4px}
+  .panel-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:4px}
+</style>
+</head>
+<body data-block-style="ceramic">
+
+<div id="bgLayer">
+  <div id="bgMedia"></div>
+  <div id="bgTint"></div>
+</div>
+
+<canvas id="weather"></canvas>
+
+<div id="app">
+  <header id="hud">
+    <div class="hud-left">
+      <div class="score-label">Счёт</div>
+      <div class="score-value" id="scoreVal">0</div>
+    </div>
+    <div class="hud-right">
+      <div class="best-pill">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+          <defs>
+            <linearGradient id="crownGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffeab5"/>
+              <stop offset="0.5" stop-color="#efc463"/>
+              <stop offset="1" stop-color="#b8872f"/>
+            </linearGradient>
+          </defs>
+          <path d="M3.2 8.4l4.3 3.1L12 4.1l4.5 7.4 4.3-3.1-1.7 9.1H4.9L3.2 8.4z" fill="url(#crownGrad)"/>
+          <path d="M3.2 8.4l4.3 3.1L12 4.1l4.5 7.4 4.3-3.1" fill="none" stroke="#fff6dd" stroke-width="0.8" stroke-linejoin="round" opacity="0.85"/>
+          <rect x="4.9" y="18.5" width="14.2" height="1.9" rx="0.95" fill="url(#crownGrad)"/>
+        </svg>
+        <span id="bestVal">0</span>
+      </div>
+      <button class="icon-btn" id="btnSound" aria-label="Звук">
+        <svg id="iconSoundOn" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 9.5h3.2L12 5.6v12.8L7.2 14.5H4z"/>
+          <path d="M15.6 9.2a3.8 3.8 0 0 1 0 5.6"/>
+          <path d="M18.2 6.6a7.6 7.6 0 0 1 0 10.8"/>
+        </svg>
+        <svg id="iconSoundOff" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <path d="M4 9.5h3.2L12 5.6v12.8L7.2 14.5H4z"/>
+          <path d="M16 9.5l5 5M21 9.5l-5 5"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btnSettings" aria-label="Настройки">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+          <circle cx="9" cy="7" r="2.1" fill="#12151c"/>
+          <circle cx="15.5" cy="12" r="2.1" fill="#12151c"/>
+          <circle cx="8" cy="17" r="2.1" fill="#12151c"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="boardArea">
+    <div id="boardWrap" class="board-frosted">
+      <div id="boardBg"></div>
+      <div id="board"></div>
+    </div>
+  </div>
+
+  <div id="tray"></div>
+</div>
+
+<div id="fpsBox" class="hidden">
+  <span id="fpsVal">60</span> FPS<span class="sep">|</span><span id="msVal">16.7</span> ms
+</div>
+
+<div id="settings" class="overlay hidden">
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Настройки</div>
+      <button class="icon-btn" id="btnCloseSettings" aria-label="Закрыть">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="bg">Фон</button>
+      <button class="tab" data-tab="board">Доска</button>
+      <button class="tab" data-tab="blocks">Блоки</button>
+      <button class="tab" data-tab="weather">Погода</button>
+      <button class="tab" data-tab="game">Игра</button>
+    </div>
+
+    <div class="panel-body" id="panelBody">
+
+      <div class="pane active" data-pane="bg">
+        <div class="group-title">Встроенные градиенты</div>
+        <div class="grad-row" id="gradRow"></div>
+
+        <div class="group-title">Своё фото или видео</div>
+        <label class="btn" for="fileBg">Загрузить из галереи</label>
+        <input type="file" id="fileBg" accept="video/*,image/*" hidden>
+
+        <div class="row">
+          <span>Режим</span>
+          <div class="seg" id="fitSeg">
+            <button data-fit="cover">Заполнить</button>
+            <button data-fit="contain">Вписать</button>
+            <button data-fit="fill">Растянуть</button>
+          </div>
+        </div>
+        <div class="row"><span>Зум</span><input type="range" id="rZoom" min="100" max="200" value="100"><b id="vZoom">100%</b></div>
+        <div class="row"><span>Сдвиг</span><input type="range" id="rOffset" min="-50" max="50" value="0"><b id="vOffset">0</b></div>
+        <div class="row"><span>Затемнение</span><input type="range" id="rDim" min="0" max="85" value="20"><b id="vDim">20%</b></div>
+        <div class="row"><span>Размытие</span><input type="range" id="rBlur" min="0" max="20" value="0"><b id="vBlur">0</b></div>
+        <button class="btn ghost" id="btnClearMedia">Убрать своё изображение</button>
+      </div>
+
+      <div class="pane" data-pane="board">
+        <div class="group-title">Фон игрового поля</div>
+        <div class="cards" id="boardCards"></div>
+        <div class="row" style="margin-top:12px">
+          <span>Прозрачность</span>
+          <input type="range" id="rBoardAlpha" min="10" max="100" value="100">
+          <b id="vBoardAlpha">100%</b>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="blocks">
+        <div class="group-title">Стиль кубиков</div>
+        <div class="cards" id="blockCards"></div>
+      </div>
+
+      <div class="pane" data-pane="weather">
+        <div class="group-title">Погода</div>
+        <div class="seg" id="weatherSeg">
+          <button data-w="off">Выкл</button>
+          <button data-w="rain">Дождь</button>
+          <button data-w="snow">Снег</button>
+          <button data-w="leaves">Листья</button>
+          <button data-w="petals">Лепестки</button>
+        </div>
+        <div class="row" style="margin-top:10px"><span>Плотность</span><input type="range" id="rWDensity" min="5" max="100" value="45"><b id="vWDensity">45</b></div>
+        <div class="row"><span>Скорость</span><input type="range" id="rWSpeed" min="10" max="250" value="100"><b id="vWSpeed">1.0</b></div>
+        <div class="row"><span>Ветер</span><input type="range" id="rWWind" min="-100" max="100" value="20"><b id="vWWind">0.2</b></div>
+      </div>
+
+      <div class="pane" data-pane="game">
+        <div class="group-title">Частота кадров</div>
+        <div class="seg" id="fpsSeg">
+          <button data-fps="30">30</button>
+          <button data-fps="60">60</button>
+          <button data-fps="90">90</button>
+          <button data-fps="120">120</button>
+          <button data-fps="0">Максимум</button>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <span>Счётчик FPS</span>
+          <div class="seg" id="fpsToggleSeg">
+            <button data-show="0">Скрыт</button>
+            <button data-show="1">Виден</button>
+          </div>
+        </div>
+
+        <div class="group-title">Музыка</div>
+        <label class="btn" for="fileMusic">Загрузить трек</label>
+        <input type="file" id="fileMusic" accept="audio/*" hidden>
+        <div class="row"><span id="musicName">Трек не выбран</span></div>
+        <div class="row"><span>Громкость</span><input type="range" id="rVolume" min="0" max="100" value="60"><b id="vVolume">60%</b></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="gameover" class="overlay center hidden">
+  <div class="panel">
+    <div class="go-inner">
+      <div class="go-title">Поле заполнено</div>
+      <div class="go-score" id="goScore">0</div>
+      <div class="go-sub">Рекорд: <b id="goBest">0</b></div>
+      <button class="btn primary" id="btnRestart">Играть снова</button>
+    </div>
+  </div>
+</div>
+
+<audio id="musicEl" loop></audio>
+
+<script>
+(function(){
+'use strict';
+
+/* =========================================================
+   1. CONSTANTS
+========================================================= */
+var N = 8;
+var KEY = 'farmiBlast_v4';
+
+var PALETTE = [
+  { base:'#b06b52', light:'#d0967e', dark:'#7a4433' }, /* терракота */
+  { base:'#7f9a79', light:'#a5be9d', dark:'#5a7155' }, /* шалфей */
+  { base:'#42589a', light:'#6d82c2', dark:'#2b3c70' }, /* кобальт */
+  { base:'#c08f42', light:'#ddb374', dark:'#916528' }, /* янтарь */
+  { base:'#82719f', light:'#a798c1', dark:'#5e4f78' }  /* лаванда */
+];
+
+var SHAPES = [
+  [[1]],
+  [[1,1]],
+  [[1],[1]],
+  [[1,1,1]],
+  [[1],[1],[1]],
+  [[1,1,1,1]],
+  [[1],[1],[1],[1]],
+  [[1,1,1,1,1]],
+  [[1],[1],[1],[1],[1]],
+  [[1,1],[1,1]],
+  [[1,1,1],[1,1,1],[1,1,1]],
+  [[1,1,1],[1,1,1]],
+  [[1,1],[1,1],[1,1]],
+  [[1,0],[1,0],[1,1]],
+  [[0,1],[0,1],[1,1]],
+  [[1,1,1],[1,0,0]],
+  [[1,1,1],[0,0,1]],
+  [[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],
+  [[1,1],[1,0]],
+  [[1,1],[0,1]],
+  [[1,0],[1,1]],
+  [[0,1],[1,1]],
+  [[1,1,0],[0,1,1]],
+  [[0,1,1],[1,1,0]],
+  [[1,1,1],[0,1,0]],
+  [[0,1,0],[1,1,1]],
+  [[1,0],[1,0]]
+];
+
+var GRADIENTS = [
+  { name:'Туманное утро',  css:'linear-gradient(160deg,#e9edf1 0%,#d3dce7 45%,#b8c6d8 100%)' },
+  { name:'Ночной сланец',  css:'linear-gradient(160deg,#1b2130 0%,#2a3346 50%,#131822 100%)' },
+  { name:'Тёплый песок',   css:'linear-gradient(160deg,#f4e8d7 0%,#e3cfb3 50%,#c9ae8b 100%)' },
+  { name:'Северный фьорд', css:'linear-gradient(160deg,#dcebf2 0%,#a9c8d6 45%,#7b9fb3 100%)' },
+  { name:'Глубокий индиго',css:'linear-gradient(160deg,#2a2b58 0%,#3e407b 50%,#1c1d3b 100%)' }
+];
+
+var BOARD_STYLES = [
+  { id:'frosted',  name:'Матовое стекло' },
+  { id:'graphite', name:'Глубокий графит' },
+  { id:'marble',   name:'Светлый мрамор' },
+  { id:'outline',  name:'Прозрачный контур' }
+];
+
+var BLOCK_STYLES = [
+  { id:'ceramic', name:'Матовая керамика' },
+  { id:'glass',   name:'Дымчатое стекло' },
+  { id:'minimal', name:'Минимал' }
+];
+
+/* --- SVG-паттерны (монохромные, 1.5px) --- */
+var PATTERN_SVG = [
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V11.6"/><path d="M12 12.1C12 8.3 9.2 5.7 4.8 5.7c0 4.3 2.9 6.4 7.2 6.4Z"/><path d="M12 13.7C12 10.3 14.3 8.3 18.8 8.3c0 3.4-2.3 5.4-6.8 5.4Z"/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.3c3.4 3.9 5.6 7.1 5.6 9.9a5.6 5.6 0 0 1-11.2 0c0-2.8 2.2-6 5.6-9.9Z"/><path d="M9.6 14.3a2.4 2.4 0 0 0 2.4 2.4"/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9.2"/><path d="M12 9.4c0-2.2 1.4-4.1 3.3-5.1"/><path d="M12 12.3c0-2.2 1.4-4.1 3.3-5.1"/><path d="M12 9.4c0-2.2-1.4-4.1-3.3-5.1"/><path d="M12 12.3c0-2.2-1.4-4.1-3.3-5.1"/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4C10.5 4 4 10.5 4 20c9.5 0 16-6.5 16-16Z"/><path d="M6.6 17.4C9.5 14.5 13 11 17 7.6"/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.9 17.2 8 12 21.1 6.8 8 12 2.9Z"/><path d="M6.8 8h10.4"/></svg>'
+];
+
+/* =========================================================
+   2. DOM
+========================================================= */
+var $ = function(id){ return document.getElementById(id); };
+var bgLayer = $('bgLayer');
+var bgMediaEl = $('bgMedia');
+var bgTint = $('bgTint');
+var boardWrap = $('boardWrap');
+var boardEl = $('board');
+var trayEl = $('tray');
+var scoreVal = $('scoreVal');
+var bestVal = $('bestVal');
+var settingsEl = $('settings');
+var gameoverEl = $('gameover');
+var musicEl = $('musicEl');
+var fpsBox = $('fpsBox');
+var fpsVal = $('fpsVal');
+var msVal = $('msVal');
+
+/* =========================================================
+   3. STATE
+========================================================= */
+var state = {
+  board: [],
+  pieces: [null, null, null],
+  score: 0,
+  best: 0,
+  combo: 0,
+  gameOver: false,
+  bgGradient: 0,
+  fit: 'cover',
+  zoom: 100,
+  offset: 0,
+  dim: 20,
+  blur: 0,
+  boardStyle: 'frosted',
+  boardAlpha: 100,
+  blockStyle: 'ceramic',
+  weatherType: 'off',
+  weatherDensity: 45,
+  weatherSpeed: 1,
+  weatherWind: 0.2,
+  fpsLimit: 60,
+  showFps: false,
+  soundOn: true,
+  volume: 0.6
+};
+
+var cells = [];
+var BOARD_SIZE = 320;
+var CELL = 40;
+
+/* =========================================================
+   4. PERSISTENCE
+========================================================= */
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify({
+      best: state.best,
+      bgGradient: state.bgGradient,
+      fit: state.fit,
+      zoom: state.zoom,
+      offset: state.offset,
+      dim: state.dim,
+      blur: state.blur,
+      boardStyle: state.boardStyle,
+      boardAlpha: state.boardAlpha,
+      blockStyle: state.blockStyle,
+      weatherType: state.weatherType,
+      weatherDensity: state.weatherDensity,
+      weatherSpeed: state.weatherSpeed,
+      weatherWind: state.weatherWind,
+      fpsLimit: state.fpsLimit,
+      showFps: state.showFps,
+      soundOn: state.soundOn,
+      volume: state.volume
+    }));
+  }catch(e){}
+}
+
+function load(){
+  try{
+    var raw = localStorage.getItem(KEY);
+    if(!raw) return;
+    var d = JSON.parse(raw);
+    for(var k in d){
+      if(d[k] !== undefined && state.hasOwnProperty(k)) state[k] = d[k];
+    }
+    if(!BOARD_STYLES.some(function(s){ return s.id === state.boardStyle; })) state.boardStyle = 'frosted';
+    if(!BLOCK_STYLES.some(function(s){ return s.id === state.blockStyle; })) state.blockStyle = 'ceramic';
+    if(typeof state.best !== 'number') state.best = 0;
+  }catch(e){}
+}
+
+/* =========================================================
+   5. AUDIO (маримба / арфа)
+========================================================= */
+var actx = null;
+var master = null;
+
+function audioInit(){
+  if(actx){
+    if(actx.state === 'suspended'){ try{ actx.resume(); }catch(e){} }
+    return;
+  }
+  try{
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    actx = new AC();
+    master = actx.createGain();
+    master.gain.value = state.volume;
+    master.connect(actx.destination);
+  }catch(e){ actx = null; }
+}
+
+function marimba(freq, dur, vol, delay){
+  if(!state.soundOn || !actx || !master) return;
+  dur = dur || 0.6;
+  vol = vol || 0.12;
+  delay = delay || 0;
+  var t0 = actx.currentTime + delay;
+  try{
+    var o1 = actx.createOscillator();
+    var g1 = actx.createGain();
+    o1.type = 'sine';
+    o1.frequency.setValueAtTime(freq, t0);
+    g1.gain.setValueAtTime(0.0001, t0);
+    g1.gain.exponentialRampToValueAtTime(vol, t0 + 0.007);
+    g1.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o1.connect(g1); g1.connect(master);
+    o1.start(t0); o1.stop(t0 + dur + 0.06);
+
+    var o2 = actx.createOscillator();
+    var g2 = actx.createGain();
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(freq * 3.01, t0);
+    g2.gain.setValueAtTime(0.0001, t0);
+    g2.gain.exponentialRampToValueAtTime(vol * 0.16, t0 + 0.004);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.34);
+    o2.connect(g2); g2.connect(master);
+    o2.start(t0); o2.stop(t0 + dur * 0.4);
+  }catch(e){}
+}
+
+var PENTA = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+
+function sfxPlace(){
+  marimba(392.00, 0.32, 0.10, 0);
+  marimba(587.33, 0.26, 0.045, 0.02);
+}
+
+function sfxClear(mult, count){
+  var base = Math.min(3 + mult, 7);
+  var n = Math.min(3 + Math.floor(count / 8), 5);
+  for(var i = 0; i < n; i++){
+    var idx = Math.min(base + i, PENTA.length - 1);
+    marimba(PENTA[idx], 0.7, 0.10, i * 0.055);
+    marimba(PENTA[idx] * 2, 0.4, 0.028, i * 0.055 + 0.01);
+  }
+}
+
+function sfxGameOver(){
+  marimba(392.00, 0.9, 0.11, 0);
+  marimba(329.63, 0.9, 0.09, 0.14);
+  marimba(261.63, 1.1, 0.08, 0.3);
+}
+
+function vibrate(p){
+  try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){}
+}
+
+/* =========================================================
+   6. PATTERN STYLES INJECTION
+========================================================= */
+(function injectPatterns(){
+  var css = '';
+  for(var i = 0; i < PATTERN_SVG.length; i++){
+    var uri = 'url("data:image/svg+xml,' + encodeURIComponent(PATTERN_SVG[i]) + '")';
+    css += '.pat.p' + i + '{-webkit-mask-image:' + uri + ';mask-image:' + uri + '}\n';
+  }
+  var st = document.createElement('style');
+  st.textContent = css;
+  document.head.appendChild(st);
+})();
+
+/* =========================================================
+   7. BLOCK FACTORY
+========================================================= */
+function makeBlock(colorIndex){
+  var p = PALETTE[colorIndex] || PALETTE[0];
+  var d = document.createElement('div');
+  d.className = 'blk';
+  d.style.setProperty('--base', p.base);
+  d.style.setProperty('--light', p.light);
+  d.style.setProperty('--dark', p.dark);
+  var s = document.createElement('span');
+  s.className = 'pat p' + colorIndex;
+  d.appendChild(s);
+  return d;
+}
+
+function makeMiniBlock(colorIndex){
+  var p = PALETTE[colorIndex] || PALETTE[0];
+  var d = document.createElement('div');
+  d.className = 'mini-block';
+  d.style.setProperty('--base', p.base);
+  d.style.setProperty('--light', p.light);
+  d.style.setProperty('--dark', p.dark);
+  var s = document.createElement('span');
+  s.className = 'pat p' + colorIndex;
+  d.appendChild(s);
+  return d;
+}
+
+/* =========================================================
+   8. BOARD HELPERS
+========================================================= */
+function idx(r, c){ return r * N + c; }
+
+function buildBoard(){
+  boardEl.innerHTML = '';
+  cells = [];
+  for(var r = 0; r < N; r++){
+    for(var c = 0; c < N; c++){
+      var d = document.createElement('div');
+      d.className = 'cell';
+      boardEl.appendChild(d);
+      cells.push(d);
+    }
+  }
+}
+
+function pieceFits(shape, r, c){
+  var rows = shape.length;
+  var cols = shape[0].length;
+  if(r < 0 || c < 0 || r + rows > N || c + cols > N) return false;
+  for(var i = 0; i < rows; i++){
+    for(var j = 0; j < cols; j++){
+      if(shape[i][j] && state.board[idx(r + i, c + j)] !== null) return false;
+    }
+  }
+  return true;
+}
+
+function fitsAnywhere(shape){
+  for(var r = 0; r < N; r++){
+    for(var c = 0; c < N; c++){
+      if(pieceFits(shape, r, c)) return true;
+    }
+  }
+  return false;
+}
+
+function findFullLines(){
+  var rows = [], cols = [];
+  for(var r = 0; r < N; r++){
+    var full = true;
+    for(var c = 0; c < N; c++){
+      if(state.board[idx(r, c)] === null){ full = false; break; }
+    }
+    if(full) rows.push(r);
+  }
+  for(var c2 = 0; c2 < N; c2++){
+    var full2 = true;
+    for(var r2 = 0; r2 < N; r2++){
+      if(state.board[idx(r2, c2)] === null){ full2 = false; break; }
+    }
+    if(full2) cols.push(c2);
+  }
+  return { rows: rows, cols: cols };
+}
+
+/* =========================================================
+   9. PIECES
+========================================================= */
+function makePiece(){
+  var shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+  var copy = shape.map(function(row){ return row.slice(); });
+  return { shape: copy, color: Math.floor(Math.random() * PALETTE.length) };
+}
+
+function newPieces(){
+  state.pieces = [makePiece(), makePiece(), makePiece()];
+}
+
+/* =========================================================
+   10. RENDERING
+========================================================= */
+function renderTray(){
+  trayEl.innerHTML = '';
+  var slotW = (trayEl.clientWidth - 20) / 3;
+  if(!slotW || slotW < 20) slotW = 96;
+  var slotH = 92;
+
+  for(var i = 0; i < 3; i++){
+    var slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.dataset.i = i;
+
+    var piece = state.pieces[i];
+    if(piece){
+      var sh = piece.shape;
+      var rows = sh.length;
+      var cols = sh[0].length;
+      var ts = Math.min((slotW - 14) / cols, (slotH - 14) / rows, CELL * 0.62);
+      if(!isFinite(ts) || ts < 4) ts = 12;
+
+      var holder = document.createElement('div');
+      holder.className = 'piece';
+      holder.style.width = (cols * ts) + 'px';
+      holder.style.height = (rows * ts) + 'px';
+
+      for(var r = 0; r < rows; r++){
+        for(var c = 0; c < cols; c++){
+          if(!sh[r][c]) continue;
+          var b = makeBlock(piece.color);
+          b.classList.add('free');
+          b.style.left = (c * ts + 1) + 'px';
+          b.style.top = (r * ts + 1) + 'px';
+          b.style.width = (ts - 2) + 'px';
+          b.style.height = (ts - 2) + 'px';
+          holder.appendChild(b);
+        }
+      }
+      slot.appendChild(holder);
+    }
+    trayEl.appendChild(slot);
+  }
+}
+
+function updateHud(){
+  scoreVal.textContent = state.score;
+  bestVal.textContent = state.best;
+  if(state.score >= state.best && state.score > 0){
+    bestVal.textContent = state.score;
+  }
+}
+
+function updateScorePulse(){
+  scoreVal.classList.add('bump');
+  setTimeout(function(){ scoreVal.classList.remove('bump'); }, 260);
+}
+
+/* =========================================================
+   11. PLACEMENT
+========================================================= */
+function placePiece(pieceIndex, r, c){
+  var piece = state.pieces[pieceIndex];
+  if(!piece) return;
+  var shape = piece.shape;
+  var added = 0;
+
+  for(var i = 0; i < shape.length; i++){
+    for(var j = 0; j < shape[i].length; j++){
+      if(!shape[i][j]) continue;
+      var k = idx(r + i, c + j);
+      state.board[k] = piece.color;
+      var blk = makeBlock(piece.color);
+      cells[k].appendChild(blk);
+      added++;
+    }
+  }
+
+  state.pieces[pieceIndex] = null;
+  state.score += added;
+
+  var lines = findFullLines();
+  var total = lines.rows.length + lines.cols.length;
+
+  if(total > 0){
+    state.combo++;
+    var mult = Math.min(state.combo, 5);
+    var set = {};
+
+    for(var a = 0; a < lines.rows.length; a++){
+      for(var cc = 0; cc < N; cc++) set[idx(lines.rows[a], cc)] = true;
+    }
+    for(var b = 0; b < lines.cols.length; b++){
+      for(var rr = 0; rr < N; rr++) set[idx(rr, lines.cols[b])] = true;
+    }
+
+    var list = [];
+    for(var key in set){ if(set.hasOwnProperty(key)) list.push(parseInt(key, 10)); }
+
+    var gain = list.length * 10 * mult;
+    state.score += gain;
+
+    for(var m = 0; m < list.length; m++){
+      var kk = list[m];
+      state.board[kk] = null;
+      var el = cells[kk].firstElementChild;
+      if(el) el.classList.add('pop');
+      spawnParticles(kk, piece.color);
+    }
+
+    (function(captured){
+      setTimeout(function(){
+        for(var q = 0; q < captured.length; q++){
+          var node = cells[captured[q]].firstElementChild;
+          if(node && node.classList.contains('pop')) cells[captured[q]].removeChild(node);
+        }
+      }, 350);
+    })(list);
+
+    floatText('+' + gain, '#f0d9a8');
+    if(mult > 1){
+      (function(mm){
+        setTimeout(function(){ floatText('КОМБО x' + mm, '#a8d8b8'); }, 150);
+      })(mult);
+    }
+
+    sfxClear(mult, list.length);
+    vibrate(mult > 1 ? [14, 26, 14] : 20);
+  }else{
+    state.combo = 0;
+    sfxPlace();
+    vibrate(8);
+  }
+
+  if(state.score > state.best) state.best = state.score;
+
+  updateHud();
+  updateScorePulse();
+  save();
+
+  var allUsed = state.pieces[0] === null && state.pieces[1] === null && state.pieces[2] === null;
+  if(allUsed) newPieces();
+
+  renderTray();
+  setTimeout(checkGameOver, 380);
+}
+
+function checkGameOver(){
+  if(state.gameOver) return;
+  var alive = false;
+  for(var i = 0; i < 3; i++){
+    var p = state.pieces[i];
+    if(p && fitsAnywhere(p.shape)){ alive = true; break; }
+  }
+  if(!alive) doGameOver();
+}
+
+function doGameOver(){
+  state.gameOver = true;
+  $('goScore').textContent = state.score;
+  $('goBest').textContent = state.best;
+  gameoverEl.classList.remove('hidden');
+  sfxGameOver();
+  vibrate([30, 50, 40]);
+}
+
+function resetGame(){
+  state.board = new Array(64).fill(null);
+  state.score = 0;
+  state.combo = 0;
+  state.gameOver = false;
+
+  for(var i = 0; i < 64; i++){
+    var cell = cells[i];
+    while(cell.firstChild) cell.removeChild(cell.firstChild);
+    cell.classList.remove('hl', 'pc');
+  }
+
+  newPieces();
+  renderTray();
+  updateHud();
+  save();
+  gameoverEl.classList.add('hidden');
+}
+
+/* =========================================================
+   12. HIGHLIGHTS + DRAG
+========================================================= */
+var highlighted = [];
+var drag = null;
+
+function clearHighlights(){
+  for(var i = 0; i < highlighted.length; i++){
+    highlighted[i].classList.remove('hl', 'pc');
+  }
+  highlighted.length = 0;
+}
+
+function updatePreview(shape, target){
+  clearHighlights();
+  if(!target) return;
+  if(!pieceFits(shape, target.r, target.c)) return;
+
+  var occupied = {};
+  var rows = shape.length, cols = shape[0].length;
+  for(var i = 0; i < rows; i++){
+    for(var j = 0; j < cols; j++){
+      if(!shape[i][j]) continue;
+      var k = idx(target.r + i, target.c + j);
+      occupied[k] = true;
+      cells[k].classList.add('hl');
+      highlighted.push(cells[k]);
+    }
+  }
+
+  var fullRows = [], fullCols = [];
+  for(var r = 0; r < N; r++){
+    var full = true;
+    for(var c = 0; c < N; c++){
+      var kk = idx(r, c);
+      if(state.board[kk] === null && !occupied[kk]){ full = false; break; }
+    }
+    if(full) fullRows.push(r);
+  }
+  for(var c2 = 0; c2 < N; c2++){
+    var full2 = true;
+    for(var r2 = 0; r2 < N; r2++){
+      var kk2 = idx(r2, c2);
+      if(state.board[kk2] === null && !occupied[kk2]){ full2 = false; break; }
+    }
+    if(full2) fullCols.push(c2);
+  }
+
+  var pre = {};
+  for(var a = 0; a < fullRows.length; a++){
+    for(var cc = 0; cc < N; cc++) pre[idx(fullRows[a], cc)] = true;
+  }
+  for(var b = 0; b < fullCols.length; b++){
+    for(var rr = 0; rr < N; rr++) pre[idx(rr, fullCols[b])] = true;
+  }
+  for(var pk in pre){
+    if(!pre.hasOwnProperty(pk)) continue;
+    var cellEl = cells[parseInt(pk, 10)];
+    if(cellEl && cellEl.classList.contains('pc') === false){
+      cellEl.classList.add('pc');
+      highlighted.push(cellEl);
+    }
+  }
+}
+
+function moveDrag(x, y){
+  if(!drag) return;
+  var br = boardEl.getBoundingClientRect();
+  var cell = CELL;
+  var shape = drag.piece.shape;
+  var cols = shape[0].length;
+  var rows = shape.length;
+
+  var left = x - (cols * cell) / 2;
+  var top = y - rows * cell - 54;
+
+  var c = Math.round((left - br.left) / cell);
+  var r = Math.round((top - br.top) / cell);
+
+  var target = null;
+  if(pieceFits(shape, r, c)){
+    left = br.left + c * cell;
+    top = br.top + r * cell;
+    target = { r: r, c: c };
+  }
+
+  drag.target = target;
+  drag.layer.style.transform = 'translate3d(' + left + 'px,' + top + 'px,0)';
+  updatePreview(shape, target);
+}
+
+function startDrag(pieceIndex, slotEl, ev){
+  var piece = state.pieces[pieceIndex];
+  if(!piece) return;
+
+  var shape = piece.shape;
+  var rows = shape.length;
+  var cols = shape[0].length;
+  var cell = CELL;
+
+  var layer = document.createElement('div');
+  layer.className = 'drag-layer';
+  layer.style.width = (cols * cell) + 'px';
+  layer.style.height = (rows * cell) + 'px';
+
+  for(var i = 0; i < rows; i++){
+    for(var j = 0; j < cols; j++){
+      if(!shape[i][j]) continue;
+      var b = makeBlock(piece.color);
+      b.classList.add('free');
+      b.style.left = (j * cell + 3) + 'px';
+      b.style.top = (i * cell + 3) + 'px';
+      b.style.width = (cell - 6) + 'px';
+      b.style.height = (cell - 6) + 'px';
+      layer.appendChild(b);
+    }
+  }
+
+  document.body.appendChild(layer);
+  slotEl.classList.add('dragging');
+
+  drag = {
+    index: pieceIndex,
+    piece: piece,
+    layer: layer,
+    slotEl: slotEl,
+    target: null
+  };
+
+  moveDrag(ev.clientX, ev.clientY);
+
+  window.addEventListener('pointermove', onDragMove, { passive: false });
+  window.addEventListener('pointerup', onDragEnd);
+  window.addEventListener('pointercancel', onDragEnd);
+}
+
+function onDragMove(ev){
+  if(!drag) return;
+  ev.preventDefault();
+  moveDrag(ev.clientX, ev.clientY);
+}
+
+function onDragEnd(){
+  if(!drag) return;
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', onDragEnd);
+
+  var d = drag;
+  drag = null;
+
+  d.layer.remove();
+  d.slotEl.classList.remove('dragging');
+  clearHighlights();
+
+  if(d.target){
+    placePiece(d.index, d.target.r, d.target.c);
+  }
+}
+
+/* =========================================================
+   13. PARTICLES / FLOAT TEXT
+========================================================= */
+function spawnParticles(cellIndex, colorIndex){
+  var rect = cells[cellIndex].getBoundingClientRect();
+  var p = PALETTE[colorIndex] || PALETTE[0];
+  var cx = rect.left + rect.width / 2;
+  var cy = rect.top + rect.height / 2;
+
+  for(var i = 0; i < 4; i++){
+    var d = document.createElement('div');
+    d.className = 'particle';
+    var size = 4 + Math.random() * 6;
+    d.style.width = size + 'px';
+    d.style.height = size + 'px';
+    d.style.background = p.light;
+    d.style.left = cx + 'px';
+    d.style.top = cy + 'px';
+    d.style.opacity = '0.9';
+    document.body.appendChild(d);
+
+    var ang = Math.random() * Math.PI * 2;
+    var dist = 22 + Math.random() * 52;
+    var dx = Math.cos(ang) * dist;
+    var dy = Math.sin(ang) * dist;
+
+    try{
+      var anim = d.animate([
+        { transform: 'translate(-50%,-50%) scale(1)', opacity: 0.9 },
+        { transform: 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px)) scale(0.15)', opacity: 0 }
+      ], { duration: 420 + Math.random() * 260, easing: 'cubic-bezier(.2,.7,.3,1)' });
+      anim.onfinish = (function(node){ return function(){ node.remove(); }; })(d);
+    }catch(e){
+      setTimeout((function(node){ return function(){ node.remove(); }; })(d), 500);
+    }
+  }
+}
+
+function floatText(text, color){
+  var br = boardWrap.getBoundingClientRect();
+  var el = document.createElement('div');
+  el.className = 'float-text';
+  el.textContent = text;
+  el.style.left = (br.left + br.width / 2) + 'px';
+  el.style.top = (br.top + br.height * 0.42) + 'px';
+  el.style.color = color || '#ffffff';
+  document.body.appendChild(el);
+
+  try{
+    var anim = el.animate([
+      { transform: 'translate(-50%,-50%) scale(.6)', opacity: 0 },
+      { transform: 'translate(-50%,-82%) scale(1.06)', opacity: 1, offset: 0.26 },
+      { transform: 'translate(-50%,-155%) scale(1)', opacity: 0 }
+    ], { duration: 1000, easing: 'cubic-bezier(.2,.8,.3,1)' });
+    anim.onfinish = function(){ el.remove(); };
+  }catch(e){
+    setTimeout(function(){ el.remove(); }, 1000);
+  }
+}
+
+/* =========================================================
+   14. WEATHER
+========================================================= */
+var weather = {
+  canvas: $('weather'),
+  ctx: null,
+  w: 0,
+  h: 0,
+  dpr: 1,
+  particles: []
+};
+
+weather.ctx = weather.canvas.getContext('2d');
+
+function weatherResize(){
+  var c = weather.canvas;
+  weather.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  weather.w = window.innerWidth;
+  weather.h = window.innerHeight;
+  c.width = Math.floor(weather.w * weather.dpr);
+  c.height = Math.floor(weather.h * weather.dpr);
+  c.style.width = weather.w + 'px';
+  c.style.height = weather.h + 'px';
+  weather.ctx.setTransform(weather.dpr, 0, 0, weather.dpr, 0, 0);
+}
+
+function newParticle(initial){
+  var W = weather.w, H = weather.h;
+  var t = weather.weatherType;
+  var x = Math.random() * W;
+  var y = initial ? Math.random() * H : -30;
+
+  if(t === 'rain'){
+    return { x: x, y: y, len: 10 + Math.random() * 16, sp: 430 + Math.random() * 260, a: 0.16 + Math.random() * 0.22 };
+  }
+  if(t === 'snow'){
+    return { x: x, y: y, r: 1.2 + Math.random() * 2.2, sp: 26 + Math.random() * 38, ph: Math.random() * 6.283, sw: 8 + Math.random() * 22, a: 0.35 + Math.random() * 0.45 };
+  }
+  if(t === 'leaves'){
+    return { x: x, y: y, r: 4 + Math.random() * 5, sp: 38 + Math.random() * 46, ph: Math.random() * 6.283, rot: Math.random() * 6.283, rs: (Math.random() - 0.5) * 1.8, a: 0.45 + Math.random() * 0.35, c: Math.floor(Math.random() * 4) };
+  }
+  return { x: x, y: y, r: 2.4 + Math.random() * 3, sp: 24 + Math.random() * 28, ph: Math.random() * 6.283, rot: Math.random() * 6.283, rs: (Math.random() - 0.5) * 1.4, a: 0.4 + Math.random() * 0.4, c: Math.floor(Math.random() * 3) };
+}
+
+function rebuildParticles(){
+  weather.particles = [];
+  if(weather.weatherType === 'off'){
+    weather.ctx.clearRect(0, 0, weather.w, weather.h);
+    return;
+  }
+  var count = Math.round((state.weatherDensity / 100) * 240);
+  if(count < 3) count = 3;
+  for(var i = 0; i < count; i++){
+    weather.particles.push(newParticle(true));
+  }
+}
+
+var LEAF_COLORS = ['rgba(196,160,110,', 'rgba(172,150,102,', 'rgba(152,166,122,', 'rgba(190,140,105,'];
+var PETAL_COLORS = ['rgba(244,222,226,', 'rgba(236,210,218,', 'rgba(248,236,238,'];
+
+function updateWeather(dt){
+  if(weather.weatherType === 'off') return;
+  var ctx = weather.ctx;
+  var W = weather.w, H = weather.h;
+  var speed = state.weatherSpeed;
+  var wind = state.weatherWind;
+
+  ctx.clearRect(0, 0, W, H);
+
+  var ps = weather.particles;
+  var t = weather.weatherType;
+
+  for(var i = 0; i < ps.length; i++){
+    var p = ps[i];
+
+    if(t === 'rain'){
+      p.y += p.sp * speed * dt;
+      p.x += wind * 230 * speed * dt;
+      if(p.y > H + 24 || p.x < -60 || p.x > W + 60){
+        p.y = -24 - Math.random() * 40;
+        p.x = Math.random() * W;
+      }
+      ctx.strokeStyle = 'rgba(202,216,236,' + p.a.toFixed(3) + ')';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - wind * 7, p.y - p.len);
+      ctx.stroke();
+
+    }else if(t === 'snow'){
+      p.ph += dt * 1.6;
+      p.y += p.sp * speed * dt;
+      p.x += (Math.sin(p.ph) * p.sw + wind * 95) * speed * dt;
+      if(p.y > H + 20){ p.y = -20; p.x = Math.random() * W; }
+      if(p.x < -30) p.x = W + 30;
+      if(p.x > W + 30) p.x = -30;
+      ctx.fillStyle = 'rgba(246,250,255,' + p.a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, 6.2832);
+      ctx.fill();
+
+    }else if(t === 'leaves'){
+      p.ph += dt * 1.1;
+      p.rot += p.rs * dt;
+      p.y += p.sp * speed * dt;
+      p.x += (Math.sin(p.ph) * p.sw + wind * 120) * speed * dt;
+      if(p.y > H + 24){ p.y = -24; p.x = Math.random() * W; }
+      if(p.x < -40) p.x = W + 40;
+      if(p.x > W + 40) p.x = -40;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = LEAF_COLORS[p.c] + p.a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.r, p.r * 0.55, 0, 0, 6.2832);
+      ctx.fill();
+      ctx.restore();
+
+    }else{
+      p.ph += dt * 1.3;
+      p.rot += p.rs * dt;
+      p.y += p.sp * speed * dt;
+      p.x += (Math.sin(p.ph) * p.sw * 0.8 + wind * 105) * speed * dt;
+      if(p.y > H + 20){ p.y = -20; p.x = Math.random() * W; }
+      if(p.x < -30) p.x = W + 30;
+      if(p.x > W + 30) p.x = -30;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = PETAL_COLORS[p.c] + p.a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.r, p.r * 0.62, 0, 0, 6.2832);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+function setWeather(type){
+  state.weatherType = type;
+  weather.weatherType = type;
+  rebuildParticles();
+  updateWeatherUI();
+  save();
+}
+
+function updateWeatherUI(){
+  var btns = document.querySelectorAll('#weatherSeg button');
+  for(var i = 0; i < btns.length; i++){
+    btns[i].classList.toggle('active', btns[i].dataset.w === state.weatherType);
+  }
+}
+
+/* =========================================================
+   15. BACKGROUND / MEDIA
+========================================================= */
+var mediaEl = null;
+
+function applyGradient(){
+  bgLayer.style.background = GRADIENTS[state.bgGradient].css;
+}
+
+function applyBgMediaStyle(){
+  bgTint.style.opacity = (state.dim / 100).toFixed(3);
+  if(!mediaEl) return;
+  mediaEl.style.objectFit = state.fit;
+  mediaEl.style.transform = 'translate(-50%,-50%) scale(' + (state.zoom / 100) + ') translateY(' + state.offset + 'px)';
+  mediaEl.style.filter = state.blur > 0 ? 'blur(' + state.blur + 'px)' : 'none';
+}
+
+function setBgMedia(file){
+  if(mediaEl){
+    try{ mediaEl.remove(); }catch(e){}
+    mediaEl = null;
+  }
+  var url = URL.createObjectURL(file);
+  var el;
+  if(file.type && file.type.indexOf('video') === 0){
+    el = document.createElement('video');
+    el.src = url;
+    el.autoplay = true;
+    el.loop = true;
+    el.muted = true;
+    el.playsInline = true;
+    el.setAttribute('playsinline', '');
+    el.setAttribute('webkit-playsinline', '');
+  }else{
+    el = document.createElement('img');
+    el.src = url;
+  }
+  el.className = 'media';
+  bgMediaEl.appendChild(el);
+  mediaEl = el;
+  applyBgMediaStyle();
+}
+
+function clearMedia(){
+  if(mediaEl){
+    try{ mediaEl.remove(); }catch(e){}
+    mediaEl = null;
+  }
+  bgMediaEl.innerHTML = '';
+}
+
+/* =========================================================
+   16. BOARD / BLOCK STYLE APPLICATION
+========================================================= */
+function applyBoardStyle(){
+  boardWrap.className = 'board-' + state.boardStyle;
+  boardWrap.style.setProperty('--boardAlpha', (state.boardAlpha / 100).toFixed(3));
+}
+
+function applyBlockStyle(){
+  document.body.setAttribute('data-block-style', state.blockStyle);
+}
+
+/* =========================================================
+   17. LAYOUT
+========================================================= */
+function layout(){
+  var area = $('boardArea').getBoundingClientRect();
+  var w = area.width;
+  var h = area.height;
+  var size = Math.floor(Math.min(w, h) - 2);
+  if(size < 200) size = 200;
+  if(size > 560) size = 560;
+  BOARD_SIZE = size;
+  CELL = size / N;
+
+  boardWrap.style.width = size + 'px';
+  boardWrap.style.height = size + 'px';
+
+  renderTray();
+}
+
+/* =========================================================
+   18. MAIN LOOP
+========================================================= */
+var lastTs = 0;
+var fpsAcc = 0;
+var fpsCnt = 0;
+
+function frame(ts){
+  requestAnimationFrame(frame);
+
+  if(!lastTs) lastTs = ts;
+
+  if(state.fpsLimit > 0){
+    var interval = 1000 / state.fpsLimit;
+    if(ts - lastTs < interval - 1.2) return;
+  }
+
+  var dt = (ts - lastTs) / 1000;
+  lastTs = ts;
+  if(!isFinite(dt) || dt <= 0) dt = 0.0001;
+  if(dt > 0.1) dt = 0.1;
+
+  updateWeather(dt);
+
+  fpsAcc += dt;
+  fpsCnt++;
+  if(fpsAcc >= 0.5){
+    var fpsNow = Math.round(fpsCnt / fpsAcc);
+    var msNow = (fpsAcc / fpsCnt) * 1000;
+    fpsAcc = 0;
+    fpsCnt = 0;
+    if(state.showFps){
+      fpsVal.textContent = fpsNow;
+      msVal.textContent = msNow.toFixed(1);
+    }
+  }
+}
+
+/* =========================================================
+   19. SETTINGS UI
+========================================================= */
+function buildGradients(){
+  var row = $('gradRow');
+  row.innerHTML = '';
+  for(var i = 0; i < GRADIENTS.length; i++){
+    (function(index){
+      var b = document.createElement('button');
+      b.className = 'grad' + (index === state.bgGradient ? ' active' : '');
+      b.style.background = GRADIENTS[index].css;
+      b.title = GRADIENTS[index].name;
+      b.addEventListener('click', function(){
+        state.bgGradient = index;
+        applyGradient();
+        var kids = row.querySelectorAll('.grad');
+        for(var k = 0; k < kids.length; k++){
+          kids[k].classList.toggle('active', k === index);
+        }
+        save();
+      });
+      row.appendChild(b);
+    })(i);
+  }
+}
+
+function buildBoardCards(){
+  var wrap = $('boardCards');
+  wrap.innerHTML = '';
+  for(var i = 0; i < BOARD_STYLES.length; i++){
+    (function(st){
+      var card = document.createElement('button');
+      card.className = 'card' + (state.boardStyle === st.id ? ' active' : '');
+      card.dataset.board = st.id;
+
+      var thumb = document.createElement('div');
+      thumb.className = 'thumb thumb-' + st.id;
+
+      var name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = st.name;
+
+      card.appendChild(thumb);
+      card.appendChild(name);
+
+      card.addEventListener('click', function(){
+        state.boardStyle = st.id;
+        applyBoardStyle();
+        var kids = wrap.querySelectorAll('.card');
+        for(var k = 0; k < kids.length; k++){
+          kids[k].classList.toggle('active', kids[k].dataset.board === st.id);
+        }
+        save();
+      });
+
+      wrap.appendChild(card);
+    })(BOARD_STYLES[i]);
+  }
+}
+
+function buildBlockCards(){
+  var wrap = $('blockCards');
+  wrap.innerHTML = '';
+  for(var i = 0; i < BLOCK_STYLES.length; i++){
+    (function(st){
+      var card = document.createElement('button');
+      card.className = 'card' + (state.blockStyle === st.id ? ' active' : '');
+      card.dataset.block = st.id;
+
+      var thumb = document.createElement('div');
+      thumb.className = 'thumb pv-' + st.id;
+      for(var k = 0; k < 3; k++){
+        thumb.appendChild(makeMiniBlock(k));
+      }
+
+      var name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = st.name;
+
+      card.appendChild(thumb);
+      card.appendChild(name);
+
+      card.addEventListener('click', function(){
+        state.blockStyle = st.id;
+        applyBlockStyle();
+        var kids = wrap.querySelectorAll('.card');
+        for(var q = 0; q < kids.length; q++){
+          kids[q].classList.toggle('active', kids[q].dataset.block === st.id);
+        }
+        save();
+      });
+
+      wrap.appendChild(card);
+    })(BLOCK_STYLES[i]);
+  }
+}
+
+function syncSettingsUI(){
+  /* gradients */
+  var grads = document.querySelectorAll('#gradRow .grad');
+  for(var i = 0; i < grads.length; i++){
+    grads[i].classList.toggle('active', i === state.bgGradient);
+  }
+  /* board cards */
+  var bcards = document.querySelectorAll('#boardCards .card');
+  for(var b = 0; b < bcards.length; b++){
+    bcards[b].classList.toggle('active', bcards[b].dataset.board === state.boardStyle);
+  }
+  /* block cards */
+  var kcards = document.querySelectorAll('#blockCards .card');
+  for(var k = 0; k < kcards.length; k++){
+    kcards[k].classList.toggle('active', kcards[k].dataset.block === state.blockStyle);
+  }
+  /* fit */
+  var fbtns = document.querySelectorAll('#fitSeg button');
+  for(var f = 0; f < fbtns.length; f++){
+    fbtns[f].classList.toggle('active', fbtns[f].dataset.fit === state.fit);
+  }
+  /* fps */
+  var fpsBtns = document.querySelectorAll('#fpsSeg button');
+  for(var p = 0; p < fpsBtns.length; p++){
+    fpsBtns[p].classList.toggle('active', parseInt(fpsBtns[p].dataset.fps, 10) === state.fpsLimit);
+  }
+  var showBtns = document.querySelectorAll('#fpsToggleSeg button');
+  for(var s = 0; s < showBtns.length; s++){
+    showBtns[s].classList.toggle('active', (showBtns[s].dataset.show === '1') === state.showFps);
+  }
+  /* sliders */
+  $('rZoom').value = state.zoom;
+  $('vZoom').textContent = state.zoom + '%';
+  $('rOffset').value = state.offset;
+  $('vOffset').textContent = state.offset;
+  $('rDim').value = state.dim;
+  $('vDim').textContent = state.dim + '%';
+  $('rBlur').value = state.blur;
+  $('vBlur').textContent = state.blur;
+  $('rBoardAlpha').value = state.boardAlpha;
+  $('vBoardAlpha').textContent = state.boardAlpha + '%';
+  $('rWDensity').value = state.weatherDensity;
+  $('vWDensity').textContent = state.weatherDensity;
+  $('rWSpeed').value = Math.round(state.weatherSpeed * 100);
+  $('vWSpeed').textContent = state.weatherSpeed.toFixed(1);
+  $('rWWind').value = Math.round(state.weatherWind * 100);
+  $('vWWind').textContent = state.weatherWind.toFixed(1);
+  $('rVolume').value = Math.round(state.volume * 100);
+  $('vVolume').textContent = Math.round(state.volume * 100) + '%';
+  /* weather */
+  updateWeatherUI();
+  /* fps box */
+  fpsBox.classList.toggle('hidden', !state.showFps);
+  /* sound icon */
+  $('iconSoundOn').style.display = state.soundOn ? 'block' : 'none';
+  $('iconSoundOff').style.display = state.soundOn ? 'none' : 'block';
+}
+
+function bindSettings(){
+  /* tabs */
+  var tabs = document.querySelectorAll('#tabs .tab');
+  for(var i = 0; i < tabs.length; i++){
+    tabs[i].addEventListener('click', function(){
+      var t = this.dataset.tab;
+      var allTabs = document.querySelectorAll('#tabs .tab');
+      for(var k = 0; k < allTabs.length; k++) allTabs[k].classList.toggle('active', allTabs[k].dataset.tab === t);
+      var panes = document.querySelectorAll('.pane');
+      for(var q = 0; q < panes.length; q++) panes[q].classList.toggle('active', panes[q].dataset.pane === t);
+    });
+  }
+
+  /* open / close */
+  $('btnSettings').addEventListener('click', function(){
+    audioInit();
+    syncSettingsUI();
+    settingsEl.classList.remove('hidden');
+    marimba(660, 0.3, 0.07, 0);
+  });
+  $('btnCloseSettings').addEventListener('click', function(){
+    settingsEl.classList.add('hidden');
+  });
+  settingsEl.addEventListener('click', function(e){
+    if(e.target === settingsEl) settingsEl.classList.add('hidden');
+  });
+
+  /* file bg */
+  $('fileBg').addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    if(!file) return;
+    setBgMedia(file);
+    marimba(700, 0.3, 0.08, 0);
+    marimba(950, 0.3, 0.05, 0.08);
+    e.target.value = '';
+  });
+
+  $('btnClearMedia').addEventListener('click', function(){
+    clearMedia();
+    marimba(420, 0.25, 0.07, 0);
+  });
+
+  /* fit */
+  var fitBtns = document.querySelectorAll('#fitSeg button');
+  for(var f = 0; f < fitBtns.length; f++){
+    fitBtns[f].addEventListener('click', function(){
+      state.fit = this.dataset.fit;
+      var bs = document.querySelectorAll('#fitSeg button');
+      for(var k = 0; k < bs.length; k++) bs[k].classList.toggle('active', bs[k].dataset.fit === state.fit);
+      applyBgMediaStyle();
+      save();
+    });
+  }
+
+  /* sliders */
+  $('rZoom').addEventListener('input', function(){
+    state.zoom = parseInt(this.value, 10);
+    $('vZoom').textContent = state.zoom + '%';
+    applyBgMediaStyle();
+  });
+  $('rZoom').addEventListener('change', save);
+
+  $('rOffset').addEventListener('input', function(){
+    state.offset = parseInt(this.value, 10);
+    $('vOffset').textContent = state.offset;
+    applyBgMediaStyle();
+  });
+  $('rOffset').addEventListener('change', save);
+
+  $('rDim').addEventListener('input', function(){
+    state.dim = parseInt(this.value, 10);
+    $('vDim').textContent = state.dim + '%';
+    applyBgMediaStyle();
+  });
+  $('rDim').addEventListener('change', save);
+
+  $('rBlur').addEventListener('input', function(){
+    state.blur = parseInt(this.value, 10);
+    $('vBlur').textContent = state.blur;
+    applyBgMediaStyle();
+  });
+  $('rBlur').addEventListener('change', save);
+
+  $('rBoardAlpha').addEventListener('input', function(){
+    state.boardAlpha = parseInt(this.value, 10);
+    $('vBoardAlpha').textContent = state.boardAlpha + '%';
+    boardWrap.style.setProperty('--boardAlpha', (state.boardAlpha / 100).toFixed(3));
+  });
+  $('rBoardAlpha').addEventListener('change', save);
+
+  $('rWDensity').addEventListener('input', function(){
+    state.weatherDensity = parseInt(this.value, 10);
+    $('vWDensity').textContent = state.weatherDensity;
+    rebuildParticles();
+  });
+  $('rWDensity').addEventListener('change', save);
+
+  $('rWSpeed').addEventListener('input', function(){
+    state.weatherSpeed = parseInt(this.value, 10) / 100;
+    $('vWSpeed').textContent = state.weatherSpeed.toFixed(1);
+  });
+  $('rWSpeed').addEventListener('change', save);
+
+  $('rWWind').addEventListener('input', function(){
+    state.weatherWind = parseInt(this.value, 10) / 100;
+    $('vWWind').textContent = state.weatherWind.toFixed(1);
+  });
+  $('rWWind').addEventListener('change', save);
+
+  $('rVolume').addEventListener('input', function(){
+    state.volume = parseInt(this.value, 10) / 100;
+    $('vVolume').textContent = Math.round(state.volume * 100) + '%';
+    if(master) master.gain.value = state.volume;
+    musicEl.volume = state.volume;
+  });
+  $('rVolume').addEventListener('change', save);
+
+  /* weather buttons */
+  var wbtns = document.querySelectorAll('#weatherSeg button');
+  for(var w = 0; w < wbtns.length; w++){
+    wbtns[w].addEventListener('click', function(){
+      audioInit();
+      setWeather(this.dataset.w);
+      marimba(620, 0.25, 0.07, 0);
+      marimba(880, 0.25, 0.04, 0.06);
+    });
+  }
+
+  /* fps buttons */
+  var fbtns = document.querySelectorAll('#fpsSeg button');
+  for(var p = 0; p < fbtns.length; p++){
+    fbtns[p].addEventListener('click', function(){
+      state.fpsLimit = parseInt(this.dataset.fps, 10);
+      var bs = document.querySelectorAll('#fpsSeg button');
+      for(var k = 0; k < bs.length; k++){
+        bs[k].classList.toggle('active', parseInt(bs[k].dataset.fps, 10) === state.fpsLimit);
+      }
+      lastTs = 0;
+      save();
+    });
+  }
+
+  /* fps toggle */
+  var sbtns = document.querySelectorAll('#fpsToggleSeg button');
+  for(var s = 0; s < sbtns.length; s++){
+    sbtns[s].addEventListener('click', function(){
+      state.showFps = this.dataset.show === '1';
+      fpsBox.classList.toggle('hidden', !state.showFps);
+      var bs = document.querySelectorAll('#fpsToggleSeg button');
+      for(var k = 0; k < bs.length; k++){
+        bs[k].classList.toggle('active', (bs[k].dataset.show === '1') === state.showFps);
+      }
+      save();
+    });
+  }
+
+  /* music file */
+  $('fileMusic').addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    if(!file) return;
+    var url = URL.createObjectURL(file);
+    musicEl.src = url;
+    musicEl.volume = state.volume;
+    var nm = $('musicName');
+    nm.textContent = file.name.length > 26 ? file.name.slice(0, 24) + '...' : file.name;
+    if(state.soundOn){
+      musicEl.play().catch(function(){});
+    }
+    e.target.value = '';
+  });
+
+  /* sound toggle */
+  $('btnSound').addEventListener('click', function(){
+    state.soundOn = !state.soundOn;
+    $('iconSoundOn').style.display = state.soundOn ? 'block' : 'none';
+    $('iconSoundOff').style.display = state.soundOn ? 'none' : 'block';
+    if(state.soundOn){
+      audioInit();
+      if(musicEl.src) musicEl.play().catch(function(){});
+      marimba(660, 0.28, 0.08, 0);
+      marimba(880, 0.28, 0.05, 0.08);
+    }else{
+      musicEl.pause();
+    }
+    save();
+  });
+
+  /* restart */
+  $('btnRestart').addEventListener('click', function(){
+    audioInit();
+    resetGame();
+    marimba(523.25, 0.35, 0.09, 0);
+    marimba(659.25, 0.35, 0.06, 0.09);
+  });
+}
+
+/* =========================================================
+   20. INPUT
+========================================================= */
+function bindInput(){
+  trayEl.addEventListener('pointerdown', function(e){
+    if(state.gameOver) return;
+    var slot = e.target.closest ? e.target.closest('.slot') : null;
+    if(!slot) return;
+    var i = parseInt(slot.dataset.i, 10);
+    if(isNaN(i) || !state.pieces[i]) return;
+    e.preventDefault();
+    audioInit();
+    startDrag(i, slot, e);
+  }, { passive: false });
+
+  boardEl.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchmove', function(e){
+    if(e.touches && e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('pointerdown', function once(){
+    audioInit();
+    document.removeEventListener('pointerdown', once);
+  });
+}
+
+/* =========================================================
+   21. INIT
+========================================================= */
+function init(){
+  load();
+
+  /* board state */
+  state.board = new Array(64).fill(null);
+  newPieces();
+
+  /* build */
+  buildBoard();
+  buildGradients();
+  buildBoardCards();
+  buildBlockCards();
+
+  /* apply */
+  applyGradient();
+  applyBoardStyle();
+  applyBlockStyle();
+  applyBgMediaStyle();
+  weather.weatherType = state.weatherType;
+
+  /* layout */
+  layout();
+  renderTray();
+  updateHud();
+
+  /* settings */
+  syncSettingsUI();
+  bindSettings();
+  bindInput();
+
+  /* weather canvas */
+  weatherResize();
+  rebuildParticles();
+
+  /* fps */
+  fpsBox.classList.toggle('hidden', !state.showFps);
+
+  /* loop */
+  lastTs = 0;
+  requestAnimationFrame(frame);
+
+  /* resize */
+  var rt = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){
+      weatherResize();
+      rebuildParticles();
+      layout();
+    }, 120);
+  });
+  window.addEventListener('orientationchange', function(){
+    setTimeout(function(){
+      weatherResize();
+      rebuildParticles();
+      layout();
+    }, 260);
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible'){
+      lastTs = 0;
+      layout();
+    }
+  });
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>
